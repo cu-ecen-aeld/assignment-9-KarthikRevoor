@@ -5,3 +5,7 @@
 	path = base_external/buildroot
 	url = https://gitlab.com/buildroot.org/buildroot
 	branch = 2024.02.x
+[submodule "buildroot"]
+	path = buildroot
+	url = https://gitlab.com/buildroot.org/buildroot
+	branch = 2024.02.x
