@@ -1,0 +1,6 @@
+config BR2_PACKAGE_LDD
+	bool "ldd"
+	help
+	  Build and install kernel modules from the ldd3 repository,
+	  including misc-modules (hello, faulty) and scull.
+

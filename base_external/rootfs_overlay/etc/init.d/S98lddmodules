@@ -1,0 +1,120 @@
+#!/bin/sh
+# /etc/init.d/S98lddmodules
+# Load and unload scull, faulty, and hello modules (simplified version)
+
+msg() {
+    echo "[LDD] $1"
+}
+
+find_group() {
+    if grep -q '^staff:' /etc/group; then
+        echo "staff"
+    else
+        echo "wheel"
+    fi
+}
+
+create_scull_nodes() {
+    local maj=$1
+    local groupName=$2
+    local modeBits=664
+
+    # base devices
+    rm -f /dev/scull0 /dev/scull1 /dev/scull2 /dev/scull3
+    mknod /dev/scull0 c "$maj" 0
+    mknod /dev/scull1 c "$maj" 1
+    mknod /dev/scull2 c "$maj" 2
+    mknod /dev/scull3 c "$maj" 3
+    ln -sf scull0 /dev/scull
+    chgrp "$groupName" /dev/scull0 /dev/scull1 /dev/scull2 /dev/scull3
+    chmod "$modeBits" /dev/scull0 /dev/scull1 /dev/scull2 /dev/scull3
+
+    # pipe devices
+    rm -f /dev/scullpipe0 /dev/scullpipe1 /dev/scullpipe2 /dev/scullpipe3
+    mknod /dev/scullpipe0 c "$maj" 4
+    mknod /dev/scullpipe1 c "$maj" 5
+    mknod /dev/scullpipe2 c "$maj" 6
+    mknod /dev/scullpipe3 c "$maj" 7
+    ln -sf scullpipe0 /dev/scullpipe
+    chgrp "$groupName" /dev/scullpipe0 /dev/scullpipe1 /dev/scullpipe2 /dev/scullpipe3
+    chmod "$modeBits" /dev/scullpipe0 /dev/scullpipe1 /dev/scullpipe2 /dev/scullpipe3
+
+    # extra devices
+    rm -f /dev/scullsingle /dev/sculluid /dev/scullwuid /dev/scullpriv
+    mknod /dev/scullsingle c "$maj" 8
+    mknod /dev/sculluid    c "$maj" 9
+    mknod /dev/scullwuid   c "$maj" 10
+    mknod /dev/scullpriv   c "$maj" 11
+    chgrp "$groupName" /dev/scullsingle /dev/sculluid /dev/scullwuid /dev/scullpriv
+    chmod "$modeBits" /dev/scullsingle /dev/sculluid /dev/scullwuid /dev/scullpriv
+}
+
+delete_scull_nodes() {
+    rm -f /dev/scull /dev/scull0 /dev/scull1 /dev/scull2 /dev/scull3
+    rm -f /dev/scullpipe /dev/scullpipe0 /dev/scullpipe1 /dev/scullpipe2 /dev/scullpipe3
+    rm -f /dev/scullsingle /dev/sculluid /dev/scullwuid /dev/scullpriv
+}
+
+insert_module() {
+    local name=$1
+    msg "Loading $name..."
+    modprobe "$name" 2>/dev/null || insmod /lib/modules/${name}.ko 2>/dev/null || {
+        msg "Failed to insert $name"
+        return 1
+    }
+
+    local majorNum
+    majorNum=$(awk '$2=="'"$name"'" {print $1}' /proc/devices)
+    [ -z "$majorNum" ] && return
+
+    if [ "$name" = "scull" ]; then
+        create_scull_nodes "$majorNum" "$SYSTEM_GROUP"
+    else
+        rm -f /dev/"$name"
+        mknod /dev/"$name" c "$majorNum" 0
+        chgrp "$SYSTEM_GROUP" /dev/"$name"
+        chmod 664 /dev/"$name"
+    fi
+}
+
+remove_module() {
+    local name=$1
+    msg "Removing $name..."
+    modprobe -r "$name" 2>/dev/null || rmmod "$name" 2>/dev/null
+
+    if [ "$name" = "scull" ]; then
+        delete_scull_nodes
+    elif [ -e /dev/"$name" ]; then
+        rm -f /dev/"$name"
+    fi
+}
+
+SYSTEM_GROUP=$(find_group)
+
+case "$1" in
+    start)
+        msg "Starting LDD setup..."
+        insert_module scull
+        insert_module faulty
+        insert_module hello
+        msg "All modules loaded."
+        ;;
+    stop)
+        msg "Stopping LDD setup..."
+        remove_module hello
+        remove_module faulty
+        remove_module scull
+        msg "All modules removed."
+        ;;
+    restart)
+        $0 stop
+        $0 start
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart}"
+        exit 1
+        ;;
+esac
+
+exit 0
+
