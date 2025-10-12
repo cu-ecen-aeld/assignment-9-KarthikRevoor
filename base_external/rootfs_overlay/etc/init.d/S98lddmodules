@@ -1,6 +1,5 @@
 #!/bin/sh
 # /etc/init.d/S98lddmodules
-# Load and unload scull, faulty, and hello modules (simplified version)
 
 msg() {
     echo "[LDD] $1"
