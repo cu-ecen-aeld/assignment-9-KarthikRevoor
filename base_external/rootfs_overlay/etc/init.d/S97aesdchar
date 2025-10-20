@@ -1,0 +1,86 @@
+#!/bin/sh
+# AESD Char Device Startup Script
+# Loads and unloads the aesdchar kernel module at boot/shutdown
+
+# Determine correct group for device permissions
+choose_group() {
+    if grep -q '^staff:' /etc/group; then
+        echo "staff"
+    else
+        echo "wheel"
+    fi
+}
+
+# Load module and create device node
+load_mod() {
+    local modname="$1"
+    local modfile="$2"
+    local found_major
+
+    echo "Attempting to load $modname..."
+
+    # Try modprobe first, fallback to insmod
+    if ! modprobe "$modname" 2>/dev/null; then
+        echo "modprobe $modname failed, trying insmod $modfile"
+        insmod "$modfile" || {
+            echo "insmod failed for $modfile"
+            exit 1
+        }
+    fi
+
+    # Fetch major number from /proc/devices
+    found_major=$(awk "\$2==\"$modname\" {print \$1}" /proc/devices)
+    [ -z "$found_major" ] && {
+        echo "Failed to find major number for $modname"
+        exit 1
+    }
+
+    # Create device node with correct permissions
+    rm -f /dev/"$modname"
+    mknod /dev/"$modname" c "$found_major" 0
+    chgrp "$MAIN_GROUP" /dev/"$modname"
+    chmod 664 /dev/"$modname"
+    echo "$modname device created at /dev/$modname (major $found_major)"
+}
+
+# Unload module and remove device node
+unload_mod() {
+    local modname="$1"
+    echo "Unloading $modname module..."
+
+    if ! modprobe -r "$modname" 2>/dev/null; then
+        echo "modprobe -r $modname failed, trying rmmod"
+        rmmod "$modname" || {
+            echo "rmmod failed for $modname"
+            exit 1
+        }
+    fi
+
+    rm -f /dev/"$modname"
+    echo "$modname device removed"
+}
+
+# Pick appropriate group for device permissions
+MAIN_GROUP=$(choose_group)
+
+case "$1" in
+    start)
+        echo "=== Starting aesdchar driver ==="
+        load_mod aesdchar /lib/modules/$(uname -r)/extra/aesdchar.ko
+        ;;
+    stop)
+        echo "=== Stopping aesdchar driver ==="
+        unload_mod aesdchar
+        ;;
+    restart)
+        $0 stop
+        $0 start
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart}"
+        exit 1
+        ;;
+esac
+
+exit 0
+
