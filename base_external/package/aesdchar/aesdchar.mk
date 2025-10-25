@@ -5,7 +5,7 @@
 ################################################################################
 
 # Git commit hash identifying the exact version to build
-AESDCHAR_VERSION = 7a266a1b983dcc2a875cb23968acd4f7916b6d30
+AESDCHAR_VERSION = bfce51e7715d08f44b54e9913a28fa173254038e
 
 # Git repository containing the aesdchar driver source
 AESDCHAR_SITE = git@github.com:cu-ecen-aeld/assignments-3-and-later-KarthikRevoor.git
